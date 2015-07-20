@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="utf-8"?>  
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml"  
+				xmlns:fp="com.devaldi.controls.flexpaper.*"  
+				layout="absolute" width="100%" height="100%"   
+				applicationComplete="initApp();">  
+	
+	<mx:Metadata>  
+		[ResourceBundle("FlexPaper")]  
+	</mx:Metadata>  
+	<mx:Script>  
+		<![CDATA[ 
+			import mx.controls.Alert; 
+			import com.devaldi.events.CurrentPageChangedEvent; 
+			import com.devaldi.events.CursorModeChangedEvent; 
+			import com.devaldi.events.DocumentLoadedEvent; 
+			import com.devaldi.events.DocumentPrintedEvent; 
+			import com.devaldi.events.ErrorLoadingPageEvent; 
+			import com.devaldi.events.ExternalLinkClickedEvent; 
+			import com.devaldi.events.FitModeChangedEvent; 
+			import com.devaldi.events.ScaleChangedEvent; 
+			import com.devaldi.events.ViewModeChangedEvent; 
+			
+			public var _aid:Number = 0;//文档ID 
+			
+			[Bindable] 
+			public var _Scale:Number = 1;//缩放比例 
+			
+			[Bindable] 
+			public var _EncodeURI:Boolean = true; 
+			
+			[Bindable] 
+			public var _SwfFile:String = "";//SWF文件路径 
+			
+			[Bindable] 
+			public var _tocpath:String = "";//xml文件路径 
+			[Bindable] 
+			public var _ZoomTransition:String = "easeOut"; 
+			
+			[Bindable] 
+			public var _ZoomTime:Number = 0.6; 
+			
+			[Bindable] 
+			public var _ZoomInterval:Number = 0.1; 
+			
+			[Bindable] 
+			public var _MinZoomSize:Number = 0.3; 
+			
+			[Bindable] 
+			public var _MaxZoomSize:Number = 5; 
+			
+			[Bindable] 
+			public var _FitPageOnLoad:Boolean = false;//加载后适合高度 
+			
+			[Bindable] 
+			public var _FitWidthOnLoad:Boolean = true;//加载后适合宽度 
+			
+			[Bindable] 
+			public var _PrintEnabled:Boolean = false;//是否支持打印 
+			
+			[Bindable] 
+			public var _PrintVisible:Boolean = true;//是否显示打印 
+			
+			[Bindable] 
+			public var _FullScreenAsMaxWindow:Boolean = true;//是否支付全屏 
+			
+			[Bindable] 
+			public var _ProgressiveLoading:Boolean = true;//是否延迟加载 
+			
+			[Bindable] 
+			public var _localeChain:String = "zh_CN";//语言 
+			
+			private var isFocus:Boolean = false; 
+			
+			
+			//------------------------ 
+			[Bindable] 
+			public var _SearchMatchAll:Boolean = true; 
+			
+			[Bindable] 
+			public var _PrintPaperAsBitmap:Boolean = false; 
+			
+			[Bindable] 
+			public var _ViewModeToolsVisible:Boolean = true; 
+			
+			[Bindable] 
+			public var _ZoomToolsVisible:Boolean = true; 
+			
+			[Bindable] 
+			public var _NavToolsVisible:Boolean = true; 
+			
+			[Bindable] 
+			public var _CursorToolsVisible:Boolean = true; 
+			
+			[Bindable] 
+			public var _SearchToolsVisible:Boolean = true; 
+			//初始化参数 
+			private function initApp():void{ 
+				var params:Object = Application.application.parameters; 
+				_Scale = getNumber(params, "Scale", 1); 
+//				_SwfFile = getString(params, "SwfFile", "Paper.swf"); 
+				_tocpath = getString(params, "tocpath", "X80EWD.xml"); 
+
+				_SwfFile = getString(params, "SwfFile", "{Paper/Paper[*,0].swf,398}"); 
+//				_SwfFile = getString(params, "SwfFile", "{split_sample/tourismnz2008_[*,0].swf,52}"); 
+//				_SwfFile = getString(params, "SwfFile", "{http://localhost:80/ICourseFiles/5000000004/swfresourses/2014/10/10/1412929286103/paper[*,0].swf,10}"); 
+				
+				_EncodeURI = getNumber(params, "EncodeURI", 1); 
+				_ZoomTransition = getString(params, "ZoomTransition", "easeOut"); 
+				_ZoomTime = getNumber(params, "ZoomTime", 0.6); 
+				_MinZoomSize = getNumber(params, "MinZoomSize", 0.2); 
+				_MaxZoomSize = getNumber(params, "MaxZoomSize", 5); 
+				_ZoomInterval = getNumber(params, "ZoomInterval", 0.1); 
+				_FitPageOnLoad = getBoolean(params, "FitPageOnLoad", false); 
+				_FitWidthOnLoad = getBoolean(params, "FitWidthOnLoad", true); 
+				_PrintEnabled = getBoolean(params, "PrintEnabled", true); 
+				_PrintVisible = getBoolean(params, "PrintVisible", true);
+				_FullScreenAsMaxWindow = getBoolean(params, "FullScreenAsMaxWindow", false); 
+				_ProgressiveLoading = getBoolean(params, "ProgressiveLoading", true); 
+				_localeChain = params["localeChain"]; 
+				
+				_SearchMatchAll=getBoolean(params, "SearchMatchAll", true); 
+				_PrintPaperAsBitmap=getBoolean(params, "PrintPaperAsBitmap", false); 
+				_ViewModeToolsVisible=getBoolean(params, "ViewModeToolsVisible", true); 
+				_ZoomToolsVisible=getBoolean(params, "ZoomToolsVisible", true); 
+				_NavToolsVisible=getBoolean(params, "NavToolsVisible", true); 
+				_CursorToolsVisible=getBoolean(params, "CursorToolsVisible", true); 
+				_SearchToolsVisible=getBoolean(params, "SearchToolsVisible", true); 
+				//注册事件监听 
+				this.addEventListener(MouseEvent.MOUSE_OVER, onMouseOver); 
+				this.addEventListener(MouseEvent.MOUSE_OUT, onMouseOut); 
+				this.addEventListener(MouseEvent.CLICK,setFocusTo);  
+				
+				//开放给外部（javascript）调用 
+				ExternalInterface.addCallback("hasFocus", hasFocus); 
+				ExternalInterface.addCallback("setViewerFocus", setViewerFocus);  
+				ExternalInterface.addCallback("gotoPage", gotoPage); 
+				ExternalInterface.addCallback("fitWidth", fitWidth); 
+				ExternalInterface.addCallback("fitHeight", fitHeight); 
+				ExternalInterface.addCallback("loadSwf", loadSwf); 
+				ExternalInterface.addCallback("printPaperRange", printPaperRange); 
+				ExternalInterface.addCallback("searchText", searchText); 
+				ExternalInterface.addCallback("prevSearchMatch", prevSearchMatch); 
+				ExternalInterface.addCallback("nextSearchMatch", nextSearchMatch); 
+				ExternalInterface.addCallback("switchMode", switchMode); 
+				ExternalInterface.addCallback("Zoom", Zoom); 
+				ExternalInterface.addCallback("nextPage", nextPage); 
+				ExternalInterface.addCallback("getCurrPage", getCurrPage); 
+				ExternalInterface.addCallback("prevPage", prevPage); 
+				ExternalInterface.addCallback("printPaper", printPaper); 
+				ExternalInterface.addCallback("getTotalPages", getTotalPages); 
+				
+			} 
+
+			private function setFocusTo(e:MouseEvent):void{ 
+				stage.stageFocusRect = false; 
+				stage.focus = e.target as InteractiveObject; 
+			} 
+			private function onMouseOver(event:MouseEvent):void{ 
+				this.isFocus = true; 
+			} 
+			
+			private function onMouseOut(event:MouseEvent):void{ 
+				this.isFocus = false; 
+			} 
+		
+			public function getTotalPages():Number{ 
+				return FlexPaper.getTotalPages(); 
+			} 
+			
+			public function printPaper(e:Event):void{ 
+				FlexPaper.printPaper(e); 
+			} 
+			
+			public function printPaperRange(range:String):void{ 
+				FlexPaper.printPaperRange(range); 
+			} 
+			public function searchText(text:String):void{ 
+				FlexPaper.searchText(text);              
+			}        
+			
+			public function prevSearchMatch():void{ 
+				FlexPaper.prevSearchMatch(); 
+			} 
+			
+			public function nextSearchMatch(text:String):void{ 
+				FlexPaper.nextSearchMatch(text); 
+			} 
+			
+			public function switchMode(mode:String=null):void{ 
+				FlexPaper.switchMode(mode); 
+			} 
+			public function Zoom(factor:Number):void{ 
+				FlexPaper.Zoom(factor); 
+			} 
+			
+			public function nextPage():void{ 
+				FlexPaper.nextPage(); 
+			}    
+			
+			public function prevPage():void{ 
+				return FlexPaper.prevPage(); 
+			} 
+			public function getCurrPage():Number{ 
+				return FlexPaper.getCurrPage(); 
+			} 
+			public dynamic function loadSwf(s:String):void{ 
+				FlexPaper.SwfFile = s; 
+			} 
+			public function fitHeight():void{ 
+				FlexPaper.fitHeight(); 
+			}    
+			public function fitWidth():void{ 
+				FlexPaper.fitWidth(); 
+			} 
+			public function gotoPage(p:Number):void{ 
+				FlexPaper.gotoPage(p); 
+			}            
+			
+			public function hasFocus():Boolean{ 
+				return isFocus; 
+			} 
+			
+			public function setViewerFocus(isFocus:Boolean):void{ 
+				this.FlexPaper.setViewerFocus(); 
+			} 
+			
+			/** 
+			 *  
+			 * 获取String类型参数 
+			 * 如果没有，则返回默认值 
+			 **/ 
+			private function getString(params:Object, name:String, def:String):String{ 
+				if(params[name] != null){ 
+					return params[name]; 
+				} 
+				return def; 
+			} 
+			
+			private function getNumber(params:Object, name:String, def:Number):Number{ 
+				if(params[name] != null){ 
+					return params[name]; 
+				} 
+				return def; 
+			} 
+			
+			private function getBoolean(params:Object, name:String, def:Boolean):Boolean{ 
+				if(params[name] != null){ 
+					return params[name] == "true"; 
+				} 
+				return def; 
+			} 
+		]]>  
+	</mx:Script>  
+	<fp:FlexPaperViewer id="FlexPaper"  
+						width="100%"   
+						height="100%"
+						
+						Scale="{_Scale}"   
+						SwfFile="{_SwfFile}"   
+						ZoomTransition="{_ZoomTransition}"   
+						ZoomTime="{_ZoomTime}"   
+						MinZoomSize="{_MinZoomSize}"  
+						MaxZoomSize="{_MaxZoomSize}"  
+						ZoomInterval="{_ZoomInterval}"  
+						FitPageOnLoad="{_FitPageOnLoad}"  
+						FitWidthOnLoad="{_FitWidthOnLoad}"  
+						EncodeURI="{_EncodeURI}"  
+						FullScreenAsMaxWindow="{_FullScreenAsMaxWindow}"  
+						ProgressiveLoading="{_ProgressiveLoading}"  
+						
+						tocpath="{_tocpath}"
+						
+						SearchMatchAll="{_SearchMatchAll}"  
+						PrintPaperAsBitmap="{_PrintPaperAsBitmap}"  
+						ViewModeToolsVisible="{_ViewModeToolsVisible}"  
+						ZoomToolsVisible="{_ZoomToolsVisible}"  
+						NavToolsVisible="{_NavToolsVisible}"  
+						CursorToolsVisible="{_CursorToolsVisible}"  
+						SearchToolsVisible="{_SearchToolsVisible}"  
+						locale="{_localeChain}"  
+						PrintEnabled="{_PrintEnabled}"
+						PrintVisible="{_PrintVisible}"
+						/>  
+</mx:Application>  
